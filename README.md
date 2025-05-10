@@ -2,7 +2,7 @@
 
 Реализованный функционал:
 
-Балансировка нагрузки: Round-Robin, health-check, retry, конфигурация через JSON, логирование.
+#### `Балансировка нагрузки` : Round-Robin, health-check, retry, конфигурация через JSON, логирование.
 
 Reverse Proxy: потокобезопасная маршрутизация с httputil.ReverseProxy.
 
