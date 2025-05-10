@@ -1,17 +1,26 @@
-## балансировщик нагрузки
+## Балансировщик нагрузки
 
+Реализованный функционал:
+
+Балансировка нагрузки: Round-Robin, health-check, retry, конфигурация через JSON, логирование.
+
+Reverse Proxy: потокобезопасная маршрутизация с httputil.ReverseProxy.
+
+Rate Limiting: Token Bucket с granular-лимитами (по IP/API-ключу), хранение в PostgreSQL, 429-ответы.
+
+Инфраструктура: Docker, docker-compose, юнит-тесты.
 
 #### `make build`
 
-Создаёт приложение в bin/redditclone.
+Собрать бинарник в bin/redditclone.
 
 #### `make test`
 
-Запускает тесты.
+Запуск тестов.
 
 #### `make lint`
 
-Запускает линтер.
+Запуск линтера.
 
 ## Запуск контейнера
 
@@ -19,7 +28,7 @@
 docker compose -f build/docker-compose.yml up -d --build
 ```
 
-## Тестирование
+## Тестирование производительности
 
 ```bash
 bash test/test.sh
