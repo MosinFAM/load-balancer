@@ -1,29 +1,50 @@
 services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: rate_limiter
+    ports:
+      - "5432:5432"
+    networks:
+      - lbnet
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "user" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   balancer:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: [ "./balancer", "-config", "config/config.json" ]
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8080:8080"
-    volumes:
-      - ./config:/app/config
-    depends_on:
-      - backend1
-      - backend2
-      - backend3
+    networks:
+      - lbnet
 
   backend1:
     image: hashicorp/http-echo
-    command: [ "-text=Backend 1" ]
-    ports:
-      - "9001:5678"
+    command: [ "-text=backend1" ]
+    networks:
+      - lbnet
 
   backend2:
     image: hashicorp/http-echo
-    command: [ "-text=Backend 2" ]
-    ports:
-      - "9002:5678"
+    command: [ "-text=backend2" ]
+    networks:
+      - lbnet
 
   backend3:
     image: hashicorp/http-echo
-    command: [ "-text=Backend 3" ]
-    ports:
-      - "9003:5678"
+    command: [ "-text=backend3" ]
+    networks:
+      - lbnet
+
+networks:
+  lbnet:

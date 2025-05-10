@@ -13,6 +13,7 @@ import (
 	"github.com/MosinFAM/load-balancer/internal/config"
 	"github.com/MosinFAM/load-balancer/internal/proxy"
 	"github.com/MosinFAM/load-balancer/internal/ratelimit"
+	"github.com/MosinFAM/load-balancer/internal/storage"
 )
 
 func main() {
@@ -22,6 +23,11 @@ func main() {
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
+	}
+
+	store, err := storage.NewStore("postgres://user:password@db:5432/rate_limiter?sslmode=disable")
+	if err != nil {
+		log.Fatalf("Failed to connect to PostgreSQL: %v", err)
 	}
 
 	pool := &balancer.Pool{}
@@ -43,7 +49,7 @@ func main() {
 
 	balancer.StartHealthCheck(pool, 30*time.Second)
 
-	rl := ratelimit.NewRateLimiter(5, 1) // 5 токенов, 1 токен в секунду
+	rl := ratelimit.NewRateLimiter(5, 1, store) // default: 5 tokens, 1 per second
 	lb := &proxy.LoadBalancer{
 		Pool:    pool,
 		Limiter: rl,

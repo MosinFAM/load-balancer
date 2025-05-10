@@ -63,6 +63,10 @@
 				
 				<option value="file3">github.com/MosinFAM/load-balancer/internal/proxy/proxy.go (0.0%)</option>
 				
+				<option value="file4">github.com/MosinFAM/load-balancer/internal/ratelimit/ratelimiter.go (97.3%)</option>
+				
+				<option value="file5">github.com/MosinFAM/load-balancer/internal/storage/storage.go (0.0%)</option>
+				
 				</select>
 			</div>
 			<div id="legend">
@@ -210,10 +214,12 @@ func Load(path string) (*Config, error) <span class="cov8" title="1">{
 import (
         "context"
         "log"
+        "net"
         "net/http"
         "time"
 
         "github.com/MosinFAM/load-balancer/internal/balancer"
+        "github.com/MosinFAM/load-balancer/internal/ratelimit"
 )
 
 const (
@@ -229,13 +235,24 @@ var (
 )
 
 type LoadBalancer struct {
-        Pool *balancer.Pool
+        Pool    *balancer.Pool
+        Limiter *ratelimit.RateLimiter
 }
 
 func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
         log.Printf("Incoming request: %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+        ip, _, err := net.SplitHostPort(r.RemoteAddr)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "invalid IP", http.StatusForbidden)
+                return
+        }</span>
 
-        attempts := getCtxValue(r, AttemptsKey)
+        <span class="cov0" title="0">if !lb.Limiter.Allow(ip) </span><span class="cov0" title="0">{
+                http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+                return
+        }</span>
+
+        <span class="cov0" title="0">attempts := getCtxValue(r, AttemptsKey)
         if attempts &gt;= MaxAttempts </span><span class="cov0" title="0">{
                 http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
                 return
@@ -269,6 +286,159 @@ func getCtxValue(r *http.Request, key contextKey) int <span class="cov0" title="
         val, _ := r.Context().Value(key).(int)
         return val
 }</span>
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package ratelimit
+
+import (
+        "sync"
+        "time"
+
+        "github.com/MosinFAM/load-balancer/internal/model"
+)
+
+type Bucket struct {
+        capacity   int
+        tokens     int
+        refillRate int // токенов в секунду
+        lastRefill time.Time
+        mu         sync.Mutex
+}
+
+type ClientLimit struct {
+        Capacity   int
+        RefillRate int
+}
+
+type Storage interface {
+        GetClientLimit(key string) (*model.ClientLimit, error)
+}
+
+type RateLimiter struct {
+        buckets     map[string]*Bucket
+        mu          sync.RWMutex
+        defaultCap  int
+        defaultRate int
+        Store       Storage
+}
+
+func NewRateLimiter(capacity, refillRate int, store Storage) *RateLimiter <span class="cov8" title="1">{
+        rl := &amp;RateLimiter{
+                buckets:     make(map[string]*Bucket),
+                defaultCap:  capacity,
+                defaultRate: refillRate,
+                Store:       store,
+        }
+        go rl.refillAll()
+        return rl
+}</span>
+
+func (rl *RateLimiter) refillAll() <span class="cov8" title="1">{
+        ticker := time.NewTicker(time.Second)
+        for range ticker.C </span><span class="cov8" title="1">{
+                rl.mu.RLock()
+                for _, b := range rl.buckets </span><span class="cov8" title="1">{
+                        b.mu.Lock()
+                        now := time.Now()
+                        elapsed := now.Sub(b.lastRefill).Seconds()
+                        newTokens := int(elapsed * float64(b.refillRate))
+                        if newTokens &gt; 0 </span><span class="cov8" title="1">{
+                                b.tokens = min(b.capacity, b.tokens+newTokens)
+                                b.lastRefill = now
+                        }</span>
+                        <span class="cov8" title="1">b.mu.Unlock()</span>
+                }
+                <span class="cov8" title="1">rl.mu.RUnlock()</span>
+        }
+}
+
+func (rl *RateLimiter) Allow(key string) bool <span class="cov8" title="1">{
+        rl.mu.Lock()
+        b, ok := rl.buckets[key]
+        if !ok </span><span class="cov8" title="1">{
+                capacity := rl.defaultCap
+                refillRate := rl.defaultRate
+                if rl.Store != nil </span><span class="cov8" title="1">{
+                        if cl, err := rl.Store.GetClientLimit(key); err == nil &amp;&amp; cl != nil </span><span class="cov8" title="1">{
+                                capacity = cl.Capacity
+                                refillRate = cl.RefillRate
+                        }</span>
+                }
+                <span class="cov8" title="1">b = &amp;Bucket{
+                        capacity:   capacity,
+                        tokens:     capacity,
+                        refillRate: refillRate,
+                        lastRefill: time.Now(),
+                }
+                rl.buckets[key] = b</span>
+        }
+        <span class="cov8" title="1">rl.mu.Unlock()
+
+        b.mu.Lock()
+        defer b.mu.Unlock()
+        if b.tokens &gt; 0 </span><span class="cov8" title="1">{
+                b.tokens--
+                return true
+        }</span>
+        <span class="cov8" title="1">return false</span>
+}
+
+func min(a, b int) int <span class="cov8" title="1">{
+        if a &lt; b </span><span class="cov0" title="0">{
+                return a
+        }</span>
+        <span class="cov8" title="1">return b</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package storage
+
+import (
+        "database/sql"
+        "fmt"
+        "log"
+
+        "github.com/MosinFAM/load-balancer/internal/model"
+        _ "github.com/lib/pq"
+)
+
+type ClientLimit struct {
+        Capacity   int
+        RefillRate int
+}
+
+type Store struct {
+        DB *sql.DB
+}
+
+func NewStore(dsn string) (*Store, error) <span class="cov0" title="0">{
+        db, err := sql.Open("postgres", dsn)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Could not connect to the database: %v", err)
+                return nil, fmt.Errorf("failed to open DB: %w", err)
+        }</span>
+        <span class="cov0" title="0">if err := db.Ping(); err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Could not ping the database: %v", err)
+                return nil, fmt.Errorf("failed to ping DB: %w", err)
+        }</span>
+        <span class="cov0" title="0">return &amp;Store{DB: db}, nil</span>
+}
+
+func (s *Store) GetClientLimit(key string) (*model.ClientLimit, error) <span class="cov0" title="0">{
+        var cl model.ClientLimit
+        err := s.DB.QueryRow(`
+                SELECT capacity, refill_rate
+                FROM rate_limits
+                WHERE client_key = $1
+        `, key).Scan(&amp;cl.Capacity, &amp;cl.RefillRate)
+        if err == sql.ErrNoRows </span><span class="cov0" title="0">{
+                return nil, nil
+        }</span>
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("query error: %w", err)
+        }</span>
+        <span class="cov0" title="0">return &amp;cl, nil</span>
+}
 </pre>
 		
 		</div>

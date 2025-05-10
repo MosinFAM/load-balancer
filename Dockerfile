@@ -5,8 +5,8 @@ WORKDIR /app
 # Устанавливаем зависимости для OpenSSL
 RUN apt-get update && apt-get install -y pkg-config libssl-dev
 
-COPY go.mod ./
-RUN go mod download
+COPY go.mod go.sum ./
+RUN go mod tidy
 
 COPY . .
 

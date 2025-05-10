@@ -3,6 +3,8 @@ package ratelimit
 import (
 	"sync"
 	"time"
+
+	"github.com/MosinFAM/load-balancer/internal/model"
 )
 
 type Bucket struct {
@@ -13,18 +15,29 @@ type Bucket struct {
 	mu         sync.Mutex
 }
 
+type ClientLimit struct {
+	Capacity   int
+	RefillRate int
+}
+
+type Storage interface {
+	GetClientLimit(key string) (*model.ClientLimit, error)
+}
+
 type RateLimiter struct {
 	buckets     map[string]*Bucket
 	mu          sync.RWMutex
 	defaultCap  int
 	defaultRate int
+	Store       Storage
 }
 
-func NewRateLimiter(capacity, refillRate int) *RateLimiter {
+func NewRateLimiter(capacity, refillRate int, store Storage) *RateLimiter {
 	rl := &RateLimiter{
 		buckets:     make(map[string]*Bucket),
 		defaultCap:  capacity,
 		defaultRate: refillRate,
+		Store:       store,
 	}
 	go rl.refillAll()
 	return rl
@@ -49,17 +62,25 @@ func (rl *RateLimiter) refillAll() {
 	}
 }
 
-func (rl *RateLimiter) Allow(ip string) bool {
+func (rl *RateLimiter) Allow(key string) bool {
 	rl.mu.Lock()
-	b, ok := rl.buckets[ip]
+	b, ok := rl.buckets[key]
 	if !ok {
+		capacity := rl.defaultCap
+		refillRate := rl.defaultRate
+		if rl.Store != nil {
+			if cl, err := rl.Store.GetClientLimit(key); err == nil && cl != nil {
+				capacity = cl.Capacity
+				refillRate = cl.RefillRate
+			}
+		}
 		b = &Bucket{
-			capacity:   rl.defaultCap,
-			tokens:     rl.defaultCap,
-			refillRate: rl.defaultRate,
+			capacity:   capacity,
+			tokens:     capacity,
+			refillRate: refillRate,
 			lastRefill: time.Now(),
 		}
-		rl.buckets[ip] = b
+		rl.buckets[key] = b
 	}
 	rl.mu.Unlock()
 
