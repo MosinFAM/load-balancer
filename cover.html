@@ -1,0 +1,303 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>balancer: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/MosinFAM/load-balancer/internal/balancer/balancer.go (95.7%)</option>
+				
+				<option value="file1">github.com/MosinFAM/load-balancer/internal/balancer/healthcheck.go (0.0%)</option>
+				
+				<option value="file2">github.com/MosinFAM/load-balancer/internal/config/config.go (100.0%)</option>
+				
+				<option value="file3">github.com/MosinFAM/load-balancer/internal/proxy/proxy.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package balancer
+
+import (
+        "log"
+        "net/http/httputil"
+        "net/url"
+        "sync"
+        "sync/atomic"
+)
+
+type Backend struct {
+        URL          *url.URL
+        Alive        bool
+        mu           sync.RWMutex
+        ReverseProxy *httputil.ReverseProxy
+}
+
+func (b *Backend) SetAlive(alive bool) <span class="cov8" title="1">{
+        b.mu.Lock()
+        b.Alive = alive
+        b.mu.Unlock()
+}</span>
+
+func (b *Backend) IsAlive() bool <span class="cov8" title="1">{
+        b.mu.RLock()
+        defer b.mu.RUnlock()
+        return b.Alive
+}</span>
+
+type Pool struct {
+        backends []*Backend
+        current  uint64
+}
+
+func (p *Pool) AddBackend(backend *Backend) <span class="cov8" title="1">{
+        p.backends = append(p.backends, backend)
+}</span>
+
+func (p *Pool) NextBackend() *Backend <span class="cov8" title="1">{
+        n := len(p.backends)
+        for i := 0; i &lt; n; i++ </span><span class="cov8" title="1">{
+                idx := int(atomic.AddUint64(&amp;p.current, 1)) % n
+                b := p.backends[idx]
+                if b.IsAlive() </span><span class="cov8" title="1">{
+                        return b
+                }</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+func (p *Pool) MarkBackendStatus(u *url.URL, alive bool) <span class="cov8" title="1">{
+        for _, b := range p.backends </span><span class="cov8" title="1">{
+                if b.URL.String() == u.String() </span><span class="cov8" title="1">{
+                        b.SetAlive(alive)
+                        status := "up"
+                        if !alive </span><span class="cov8" title="1">{
+                                status = "down"
+                        }</span>
+                        <span class="cov8" title="1">log.Printf("Backend %s marked as %s\n", u, status)
+                        break</span>
+                }
+        }
+}
+
+func (p *Pool) Backends() []*Backend <span class="cov0" title="0">{
+        return p.backends
+}</span>
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package balancer
+
+import (
+        "log"
+        "net"
+        "net/url"
+        "time"
+)
+
+func isAlive(u *url.URL) bool <span class="cov0" title="0">{
+        timeout := 2 * time.Second
+        conn, err := net.DialTimeout("tcp", u.Host, timeout)
+        if err != nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+        <span class="cov0" title="0">_ = conn.Close()
+        return true</span>
+}
+
+func StartHealthCheck(pool *Pool, interval time.Duration) <span class="cov0" title="0">{
+        ticker := time.NewTicker(interval)
+        go func() </span><span class="cov0" title="0">{
+                for range ticker.C </span><span class="cov0" title="0">{
+                        log.Println("Running health check...")
+                        for _, b := range pool.Backends() </span><span class="cov0" title="0">{
+                                alive := isAlive(b.URL)
+                                b.SetAlive(alive)
+                        }</span>
+                }
+        }()
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package config
+
+import (
+        "encoding/json"
+        "fmt"
+        "os"
+)
+
+type Config struct {
+        Port     int      `json:"port"`
+        Backends []string `json:"backends"`
+}
+
+func Load(path string) (*Config, error) <span class="cov8" title="1">{
+        file, err := os.Open(path)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("could not open config: %w", err)
+        }</span>
+        <span class="cov8" title="1">defer file.Close()
+
+        var cfg Config
+        if err := json.NewDecoder(file).Decode(&amp;cfg); err != nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("invalid config format: %w", err)
+        }</span>
+        <span class="cov8" title="1">return &amp;cfg, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package proxy
+
+import (
+        "context"
+        "log"
+        "net/http"
+        "time"
+
+        "github.com/MosinFAM/load-balancer/internal/balancer"
+)
+
+const (
+        MaxAttempts = 3
+        MaxRetries  = 3
+)
+
+type contextKey string
+
+var (
+        AttemptsKey = contextKey("attempts")
+        RetryKey    = contextKey("retry")
+)
+
+type LoadBalancer struct {
+        Pool *balancer.Pool
+}
+
+func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        log.Printf("Incoming request: %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+
+        attempts := getCtxValue(r, AttemptsKey)
+        if attempts &gt;= MaxAttempts </span><span class="cov0" title="0">{
+                http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+                return
+        }</span>
+
+        <span class="cov0" title="0">backend := lb.Pool.NextBackend()
+        if backend == nil </span><span class="cov0" title="0">{
+                http.Error(w, "No backend available", http.StatusServiceUnavailable)
+                return
+        }</span>
+
+        <span class="cov0" title="0">backend.ReverseProxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) </span><span class="cov0" title="0">{
+                log.Printf("Error from backend %s: %v", backend.URL.Host, err)
+                retries := getCtxValue(req, RetryKey)
+                if retries &lt; MaxRetries </span><span class="cov0" title="0">{
+                        time.Sleep(10 * time.Millisecond)
+                        ctx := context.WithValue(req.Context(), RetryKey, retries+1)
+                        backend.ReverseProxy.ServeHTTP(w, req.WithContext(ctx))
+                        return
+                }</span>
+
+                <span class="cov0" title="0">lb.Pool.MarkBackendStatus(backend.URL, false)
+                ctx := context.WithValue(r.Context(), AttemptsKey, attempts+1)
+                lb.ServeHTTP(w, r.WithContext(ctx))</span>
+        }
+
+        <span class="cov0" title="0">backend.ReverseProxy.ServeHTTP(w, r)</span>
+}
+
+func getCtxValue(r *http.Request, key contextKey) int <span class="cov0" title="0">{
+        val, _ := r.Context().Value(key).(int)
+        return val
+}</span>
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

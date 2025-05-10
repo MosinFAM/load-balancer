@@ -3,10 +3,10 @@ build:
 	go mod vendor
 	go build -mod=vendor -o bin/redditclone ./cmd/redditclone
 
-# .PHONY: test
-# test:
-# 	go test -v -coverprofile=cover.out -coverpkg=./... ./internal/...
-# 	go tool cover -html=cover.out -o cover.html
+.PHONY: test
+test:
+	go test ./internal/... -v -coverprofile=cover.out
+	go tool cover -html=cover.out -o cover.html
 
 .PHONY: lint
 lint:

@@ -1,5 +1,5 @@
 coverage.out
-*cover**
+*cover.out
 *.DS_Store
 *bin/
 *vendor
