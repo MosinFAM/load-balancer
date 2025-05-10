@@ -10,6 +10,8 @@
 
 #### `Инфраструктура`: Docker, docker-compose, юнит-тесты.
 
+
+
 #### `make build`
 
 Собрать бинарник в bin/redditclone.
