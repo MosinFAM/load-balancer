@@ -17,8 +17,8 @@ services:
 
   balancer:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: build/Dockerfile
     command: [ "./balancer", "-config", "config/config.json" ]
     depends_on:
       db:
