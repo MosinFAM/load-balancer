@@ -1,0 +1,8 @@
+{
+    "port": 8080,
+    "backends": [
+        "http://backend1:5678",
+        "http://backend2:5678",
+        "http://backend3:5678"
+    ]
+}

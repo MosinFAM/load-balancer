@@ -1,0 +1,29 @@
+services:
+  balancer:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/app/config
+    depends_on:
+      - backend1
+      - backend2
+      - backend3
+
+  backend1:
+    image: hashicorp/http-echo
+    command: [ "-text=Backend 1" ]
+    ports:
+      - "9001:5678"
+
+  backend2:
+    image: hashicorp/http-echo
+    command: [ "-text=Backend 2" ]
+    ports:
+      - "9002:5678"
+
+  backend3:
+    image: hashicorp/http-echo
+    command: [ "-text=Backend 3" ]
+    ports:
+      - "9003:5678"
