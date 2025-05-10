@@ -1,0 +1,5 @@
+coverage.out
+*cover**
+*.DS_Store
+*bin/
+*vendor
