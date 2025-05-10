@@ -24,7 +24,9 @@ func main() {
 	}
 
 	pool := &balancer.Pool{}
+	log.Println("Loaded backends from config:")
 	for _, addr := range cfg.Backends {
+		log.Printf(" - %s", addr)
 		u, err := url.Parse(addr)
 		if err != nil {
 			log.Fatalf("Invalid backend address: %s", addr)

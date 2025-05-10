@@ -26,6 +26,8 @@ type LoadBalancer struct {
 }
 
 func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Incoming request: %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+
 	attempts := getCtxValue(r, AttemptsKey)
 	if attempts >= MaxAttempts {
 		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
@@ -39,7 +41,7 @@ func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	backend.ReverseProxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
-		log.Printf("Error from %s: %v", backend.URL.Host, err)
+		log.Printf("Error from backend %s: %v", backend.URL.Host, err)
 		retries := getCtxValue(req, RetryKey)
 		if retries < MaxRetries {
 			time.Sleep(10 * time.Millisecond)
