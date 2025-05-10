@@ -2,13 +2,13 @@
 
 Реализованный функционал:
 
-#### `Балансировка нагрузки` : Round-Robin, health-check, retry, конфигурация через JSON, логирование.
+#### `Балансировка нагрузки`: Round-Robin, health-check, retry, конфигурация через JSON, логирование.
 
-Reverse Proxy: потокобезопасная маршрутизация с httputil.ReverseProxy.
+#### `Reverse Proxy`: потокобезопасная маршрутизация с httputil.ReverseProxy.
 
-Rate Limiting: Token Bucket с granular-лимитами (по IP/API-ключу), хранение в PostgreSQL, 429-ответы.
+#### `Rate Limiting`: Token Bucket с granular-лимитами (по IP/API-ключу), хранение в PostgreSQL, 429-ответы.
 
-Инфраструктура: Docker, docker-compose, юнит-тесты.
+#### `Инфраструктура`: Docker, docker-compose, юнит-тесты.
 
 #### `make build`
 
