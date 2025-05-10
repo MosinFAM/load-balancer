@@ -3,10 +3,12 @@ package proxy
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
 	"github.com/MosinFAM/load-balancer/internal/balancer"
+	"github.com/MosinFAM/load-balancer/internal/ratelimit"
 )
 
 const (
@@ -22,11 +24,22 @@ var (
 )
 
 type LoadBalancer struct {
-	Pool *balancer.Pool
+	Pool    *balancer.Pool
+	Limiter *ratelimit.RateLimiter
 }
 
 func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Incoming request: %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		http.Error(w, "invalid IP", http.StatusForbidden)
+		return
+	}
+
+	if !lb.Limiter.Allow(ip) {
+		http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+		return
+	}
 
 	attempts := getCtxValue(r, AttemptsKey)
 	if attempts >= MaxAttempts {

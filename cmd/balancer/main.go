@@ -12,6 +12,7 @@ import (
 	"github.com/MosinFAM/load-balancer/internal/balancer"
 	"github.com/MosinFAM/load-balancer/internal/config"
 	"github.com/MosinFAM/load-balancer/internal/proxy"
+	"github.com/MosinFAM/load-balancer/internal/ratelimit"
 )
 
 func main() {
@@ -42,7 +43,11 @@ func main() {
 
 	balancer.StartHealthCheck(pool, 30*time.Second)
 
-	lb := &proxy.LoadBalancer{Pool: pool}
+	rl := ratelimit.NewRateLimiter(5, 1) // 5 токенов, 1 токен в секунду
+	lb := &proxy.LoadBalancer{
+		Pool:    pool,
+		Limiter: rl,
+	}
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
